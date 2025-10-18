@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 # ✅ Import animation + utils
-from animations.vertical_reveal import animate_reveal_vertical_multi
+from animations.vertical_reveal import animate_collage_tapestry
 
 
 
@@ -68,7 +68,7 @@ def run_animation_sync(img, out_path, animation, audio_url=None):
     """Run animation synchronously and optionally add audio."""
     try:
         if animation == "reveal_vertical_zoomout":
-            duration, frames = animate_reveal_vertical_multi(img, out_path)
+            duration, frames = animate_collage_tapestry(img, out_path)
 
         else:
             raise ValueError(f"Invalid animation type: {animation}")
