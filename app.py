@@ -9,13 +9,9 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 # ✅ Import animation functions
-from animations.reveal_zoomout import animate_reveal_zoomout
-from animations.rotate_zoomin import animate_rotate_zoomin
-from animations.center_reveal_zoomout import animate_center_reveal_zoomout
-from animations.blur_zooming_roatation import animate_smooth_zoom_pan
+
 from animations.vertical_reveal import animate_reveal_vertical_zoomout
-from animations.blur_reveal6 import animate_blur_reveal
-from animations.slide_left_zoom_out7 import animate_slide_left_zoom_out7
+
 
 from animations.utils import fix_mp4
 
@@ -46,13 +42,9 @@ async def home():
     return {
         "message": "🎬 Animation API running successfully!",
         "available_animations": [
-            "reveal_zoomout",
-            "rotate_zoomin",
-            "center_reveal_zoomout",
-            "smooth_zoom_pan",
+            
             "reveal_vertical_zoomout",
-            "blur_reveal",
-            "slide_left_zoom_out7"
+           
         ],
         "example_request": "/process?image_url=https://yourimage.jpg&animation=slide_left_zoom_out7"
     }
@@ -79,20 +71,9 @@ async def fetch_image(url: str):
 def run_animation_sync(img, out_path, animation):
     """Run animation synchronously (CPU-bound)"""
     try:
-        if animation == "reveal_zoomout":
-            duration, frames = animate_reveal_zoomout(img, out_path)
-        elif animation == "rotate_zoomin":
-            duration, frames = animate_rotate_zoomin(img, out_path)
-        elif animation == "center_reveal_zoomout":
-            duration, frames = animate_center_reveal_zoomout(img, out_path)
-        elif animation == "smooth_zoom_pan":
-            duration, frames = animate_smooth_zoom_pan(img, out_path)
-        elif animation == "reveal_vertical_zoomout":
+        if animation == "reveal_vertical_zoomout":
             duration, frames = animate_reveal_vertical_zoomout(img, out_path)
-        elif animation == "blur_reveal":
-            duration, frames = animate_blur_reveal(img, out_path)
-        elif animation == "slide_left_zoom_out7":
-            duration, frames = animate_slide_left_zoom_out7(img, out_path)
+       
         else:
             raise ValueError(f"Invalid animation type: {animation}")
 
