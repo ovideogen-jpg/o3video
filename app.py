@@ -8,51 +8,42 @@ from fastapi import FastAPI, Query, Request, Response
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
-# ✅ Import animation functions
-
+# ✅ Import animation + utils
 from animations.vertical_reveal import animate_reveal_vertical_zoomout
-
-
-from animations.utils import fix_mp4
+from animations.utils import fix_mp4, add_audio_to_video
 
 # ✅ FastAPI app
 app = FastAPI(
-    title="Image Animation API 🎞️",
-    description="Generate animated videos from images using various cinematic effects.",
-    version="2.0.0"
+    title="🎬 Image Animation API with Audio",
+    description="Generate animated videos from images using cinematic effects and custom audio.",
+    version="2.1.0"
 )
 
-# ✅ Static serve for outputs folder
+# ✅ Output folder setup
 OUTDIR = "outputs"
 os.makedirs(OUTDIR, exist_ok=True)
 app.mount("/outputs", StaticFiles(directory=OUTDIR), name="outputs")
 
 
-# ---- Handle Render health check ----
+# ---- Health check ----
 @app.head("/")
 async def head_check():
-    """Handle Render HEAD request for health checks"""
     return Response(status_code=200)
 
 
 # ---- Root endpoint ----
 @app.get("/")
 async def home():
-    """Root endpoint listing available animation types."""
     return {
-        "message": "🎬 Animation API running successfully!",
-        "available_animations": [
-            
-            "reveal_vertical_zoomout",
-           
-        ],
-        "example_request": "/process?image_url=https://yourimage.jpg&animation=slide_left_zoom_out7"
+        "message": "🎥 Animation API is running!",
+        "available_animations": ["reveal_vertical_zoomout"],
+        "example_request": "/process?image_url=https://yourimage.jpg&animation=reveal_vertical_zoomout&audio_url=https://youraudio.aac"
     }
 
 
-# ---- Helper: download image ----
+# ---- Helper: Download image ----
 async def fetch_image(url: str):
-    """Download image from a public URL and return as OpenCV array."""
+    """Download image from public URL."""
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url, timeout=30) as resp:
@@ -67,18 +58,26 @@ async def fetch_image(url: str):
         return None
 
 
-# ---- Helper: run animation synchronously ----
-def run_animation_sync(img, out_path, animation):
-    """Run animation synchronously (CPU-bound)"""
+# ---- Animation runner ----
+def run_animation_sync(img, out_path, animation, audio_url=None):
+    """Run animation synchronously and optionally add audio."""
     try:
         if animation == "reveal_vertical_zoomout":
             duration, frames = animate_reveal_vertical_zoomout(img, out_path)
-       
         else:
             raise ValueError(f"Invalid animation type: {animation}")
 
-        # ✅ Convert to MP4
+        # ✅ Re-encode for browser
         fix_mp4(out_path)
+
+        # ✅ Add custom audio (if provided)
+        if audio_url:
+            out_with_audio = out_path.replace(".mp4", "_audio.mp4")
+            added = add_audio_to_video(out_path, audio_url, out_with_audio)
+            if added:
+                os.replace(out_with_audio, out_path)
+                print(f"[INFO] Audio added from {audio_url}")
+
         print(f"[INFO] Animation '{animation}' completed successfully → {out_path}")
         return duration, frames
     except Exception as e:
@@ -86,31 +85,32 @@ def run_animation_sync(img, out_path, animation):
         raise
 
 
-# ---- Main processing endpoint ----
+# ---- Main endpoint ----
 @app.get("/process")
 async def process(
     request: Request,
     image_url: str = Query(..., description="Public image URL"),
-    animation: str = Query("reveal_zoomout"),
+    animation: str = Query("reveal_vertical_zoomout", description="Animation type"),
+    audio_url: str = Query(None, description="Optional audio URL (MP3, AAC, etc.)")
 ):
-    """Download image and apply selected animation (fully synchronous)."""
+    """Download image → apply animation → attach custom audio (optional)."""
     img = await fetch_image(image_url)
     if img is None:
         return {"error": "❌ Image download failed or invalid URL"}
 
     out_path = os.path.join(OUTDIR, f"anim_{uuid.uuid4().hex}.mp4")
 
-    # ✅ Run in background thread (non-blocking for event loop)
+    # ✅ Run in background thread
     try:
         loop = asyncio.get_event_loop()
         duration, frames = await loop.run_in_executor(
-            None, lambda: run_animation_sync(img, out_path, animation)
+            None, lambda: run_animation_sync(img, out_path, animation, audio_url)
         )
     except Exception as e:
         return {"error": f"❌ Animation processing failed: {str(e)}"}
 
-    # ✅ Wait until file is actually written
-    timeout = 30  # seconds
+    # ✅ Wait for output file
+    timeout = 30
     for _ in range(timeout):
         if os.path.exists(out_path) and os.path.getsize(out_path) > 5000:
             break
@@ -119,30 +119,29 @@ async def process(
     if not os.path.exists(out_path):
         return {"error": "⚠️ Video generation failed or file missing."}
 
-    # ✅ Build output URL for the final video
     base_url = str(request.base_url).rstrip("/")
-    file_name = os.path.basename(out_path)
-    video_url = f"{base_url}/outputs/{file_name}"
+    video_url = f"{base_url}/outputs/{os.path.basename(out_path)}"
 
     print(f"[SUCCESS] Video ready at: {video_url}")
 
     return {
         "status": "✅ Success",
         "animation": animation,
+        "audio_attached": bool(audio_url),
         "duration_seconds": duration,
         "frames_written": frames,
         "video_url": video_url,
     }
 
 
-# ---- Startup event for Render stabilization ----
+# ---- Startup Event ----
 @app.on_event("startup")
 async def startup_event():
     print("🚀 Initializing Animation API...")
     await asyncio.sleep(5)
-    print("✅ Startup complete. Ready to process requests.")
+    print("✅ Ready to process requests.")
 
 
-# ---- Run the app ----
+# ---- Run locally ----
 if __name__ == "__main__":
     uvicorn.run("app:app", host="0.0.0.0", port=10000, reload=False)
