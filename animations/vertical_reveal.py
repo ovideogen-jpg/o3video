@@ -44,7 +44,7 @@ def animate_collage_tapestry(user_image, out_path, fps=24):
     frames = int(fps * total_duration)
     
     # Resize user image (portrait-like aspect)
-    img_w, img_h = int(bg_w * 0.25), int(bg_h * 0.35)
+    img_w, img_h = int(bg_w * 0.40), int(bg_h * 0.22)
     small_img = cv2.resize(user_image, (img_w, img_h))
     
     # Add white border to each copy
