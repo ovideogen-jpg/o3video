@@ -1,5 +1,6 @@
 fastapi
 uvicorn
+aiohttp
 opencv-python-headless
 numpy
-aiohttp
+requests
