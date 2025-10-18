@@ -6,6 +6,7 @@ from .utils import get_video_duration
 # Background image URL (fixed)
 BACKGROUND_URL = "https://res.cloudinary.com/dvsubaggj/image/upload/v1760535077/qftfyjnaghpu2b57rj6q.jpg"
 
+
 def load_image_from_url(url):
     """Download image from URL and return OpenCV image."""
     try:
@@ -18,66 +19,71 @@ def load_image_from_url(url):
         return None
 
 
-def animate_reveal_vertical_zoomout(user_image, out_path, fps=24):
+def animate_reveal_vertical_multi(user_image, out_path, fps=24):
     """
-    Creates a 5-second video:
-    - Background image fixed.
-    - User image animated with cinematic reveal + zoom-out effect.
+    5-second video:
+      • Background image fixed.
+      • Same user image placed in 3 positions (top-left, center, bottom-right).
+      • Each with vertical reveal animation.
+      • Zoom completely removed.
     """
-    # Load the fixed background
+    # ---- Load fixed background ----
     bg_img = load_image_from_url(BACKGROUND_URL)
     if bg_img is None:
         raise ValueError("Failed to load background image.")
 
-    # Match background and user image sizes
     bg_h, bg_w = bg_img.shape[:2]
-    user_image = cv2.resize(user_image, (bg_w, bg_h))
 
-    # Prepare video writer
+    # ---- Prepare three scaled user images ----
+    small_img = cv2.resize(user_image, (bg_w // 3, bg_h // 3))
+    medium_img = cv2.resize(user_image, (bg_w // 2, bg_h // 2))
+    large_img = cv2.resize(user_image, (int(bg_w * 0.7), int(bg_h * 0.7)))
+
+    # ---- Output video writer ----
     total_duration = 5  # seconds
     frames = int(fps * total_duration)
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(out_path, fourcc, fps, (bg_w, bg_h))
 
+    # ---- Positions for 3 placements ----
+    placements = [
+        (int(bg_w * 0.05), int(bg_h * 0.05), small_img),   # top-left
+        (int((bg_w - medium_img.shape[1]) / 2),
+         int((bg_h - medium_img.shape[0]) / 2), medium_img),  # center
+        (int(bg_w - large_img.shape[1] - bg_w * 0.05),
+         int(bg_h - large_img.shape[0] - bg_h * 0.05), large_img)  # bottom-right
+    ]
+
+    # ---- Frame loop ----
     for f in range(frames):
         t = f / frames
-
-        # ---- Background stays constant ----
         frame = bg_img.copy()
 
-        # ---- User image animation (same as before, zoom + reveal) ----
-        if t < 0.5:
-            progress = t / 0.5
-            eased = progress ** 2
-            reveal_h = int(bg_h * eased)
-            overlay = np.zeros_like(user_image)
-            overlay[:reveal_h, :] = user_image[:reveal_h, :]
-        else:
-            progress = (t - 0.5) / 0.5
-            eased = (1 - np.cos(progress * np.pi)) / 2
-            zoom_factor = np.interp(eased, [0, 1], [1.0, 0.4])  # zoom-out
-            new_w = max(1, int(bg_w * zoom_factor))
-            new_h = max(1, int(bg_h * zoom_factor))
-            zoomed = cv2.resize(user_image, (new_w, new_h))
+        # Reveal progress (first half = animate in, then hold)
+        progress = min(t / 0.5, 1.0)
+        eased = progress ** 2
 
-            x1 = (bg_w - new_w) // 2
-            y1 = (bg_h - new_h) // 2 + int(bg_h * 0.05 * progress)
-            overlay = np.zeros_like(user_image)
+        for (x, y, img) in placements:
+            img_h, img_w = img.shape[:2]
+            reveal_h = int(img_h * eased)
 
-            x1_clip, y1_clip = max(0, x1), max(0, y1)
-            x2_clip, y2_clip = min(bg_w, x1 + new_w), min(bg_h, y1 + new_h)
-            src_x1, src_y1 = max(0, -x1), max(0, -y1)
-            src_x2 = src_x1 + (x2_clip - x1_clip)
-            src_y2 = src_y1 + (y2_clip - y1_clip)
+            revealed = np.zeros_like(img)
+            revealed[:reveal_h, :] = img[:reveal_h, :]
 
-            if (y2_clip > y1_clip) and (x2_clip > x1_clip):
-                overlay[y1_clip:y2_clip, x1_clip:x2_clip] = zoomed[src_y1:src_y2, src_x1:src_x2]
+            # Overlay revealed portion
+            y2 = min(y + img_h, bg_h)
+            x2 = min(x + img_w, bg_w)
+            roi_y1 = max(0, y)
+            roi_x1 = max(0, x)
+            roi_y2 = roi_y1 + (y2 - y)
+            roi_x2 = roi_x1 + (x2 - x)
 
-        # ---- Combine overlay (user image) on top of background ----
-        alpha = 0.8  # smooth blending
-        combined = cv2.addWeighted(frame, 1 - alpha, overlay, alpha, 0)
+            frame[roi_y1:roi_y2, roi_x1:roi_x2] = cv2.addWeighted(
+                frame[roi_y1:roi_y2, roi_x1:roi_x2], 0.2,
+                revealed[:roi_y2 - roi_y1, :roi_x2 - roi_x1], 0.8, 0
+            )
 
-        writer.write(combined)
+        writer.write(frame)
 
     writer.release()
     print(f"[INFO] Video created successfully → {out_path}")
