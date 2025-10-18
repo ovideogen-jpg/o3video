@@ -1,8 +1,8 @@
 import cv2
 import subprocess
 import os
-import requests
 import tempfile
+import requests
 
 def get_video_duration(out_path):
     """Return duration (in seconds) of a video file."""
@@ -47,7 +47,7 @@ def add_audio_to_video(video_path, audio_url, output_path):
         if audio_url.startswith("http"):
             r = requests.get(audio_url)
             if r.status_code != 200:
-                print("[ERROR] Failed to download audio from:", audio_url)
+                print("[ERROR] Failed to download audio:", audio_url)
                 return None
             temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".aac")
             temp_audio.write(r.content)
@@ -66,10 +66,8 @@ def add_audio_to_video(video_path, audio_url, output_path):
             "-shortest",
             output_path
         ]
-
         subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        # ✅ Step 3: Check if new file created successfully
         if os.path.exists(output_path) and os.path.getsize(output_path) > 5000:
             print(f"[INFO] Audio added successfully → {output_path}")
             return output_path
